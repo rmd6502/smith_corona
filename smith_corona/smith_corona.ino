@@ -29,6 +29,8 @@ String shiftKeys[] = {
   "RShift","?","Code","Margin L"," ","®","Correct"
 };
 
+#define SIZE(a) (sizeof(a)/sizeof(a[0]))
+
 uint8_t rows[] = {
   A2,A3,A1,A4,A0,A5,3,12
 };
@@ -43,31 +45,73 @@ uint8_t cols[] = {
 
 uint8_t state = 0;
 
-void setup() {
+void setup() 
+{
   for (uint8_t i=0; i < NUM_ROWS; ++i) {
-    pinMode(rows[i], INPUT);
+    pinMode(rows[i], OUTPUT);
   }
   for (uint8_t i=0; i < NUM_COLS; ++i) {
-    digitalWrite(cols[i],HIGH);
     pinMode(cols[i], OUTPUT);
-    digitalWrite(cols[i],HIGH);
   }
   Serial.begin(9600);
 }
 
-void loop() {
-
-  uint16_t i,j,b=1,val=0;
-  for (i=0; i < NUM_ROWS; ++i) {
-    if (digitalRead(rows[i]) == LOW) {
-      val |= b;
+void loop() 
+{
+    if (Serial.available()) {
+        byte b = Serial.read();
+        String key(b);
+        pressKey(key);
     }
-    b <<= 1;
-  }
-  if (val & 1) {
-    digitalWrite(cols[2],LOW);
-  } else {
-    digitalWrite(cols[2],HIGH);
-  }
 }
 
+void findKey(String &key, int16_t &row, int16_t &column, uint8_t &meta)
+{
+    meta = 0;
+    row = -1;
+    column = -1;
+    uint8_t index = 0xff;
+    for (index = 0; index < SIZE(keys); ++index) {
+        if (keys[index] == key) {
+            break;
+        }
+    }
+    if (index < SIZE(keys)) {
+        row = index / NUM_ROWS;
+        column = index % NUM_ROWS;
+        return;
+    }
+    for (index = 0; index < SIZE(shiftKeys); ++index) {
+        if (keys[index] == key) {
+            break;
+        }
+    }
+    if (index < SIZE(shiftKeys)) {
+        row = index / NUM_ROWS;
+        column = index % NUM_ROWS;
+        meta = 1;
+    }
+    return;
+}
+
+static String shiftLock = "ShiftLock";
+
+void pressKey(String& key)
+{
+  int16_t row, column;
+  uint8_t meta;
+  findKey(key, row, column,meta);
+  if (row != -1) {
+    if (meta) {
+      pressKey(shiftLock);
+    }
+    digitalWrite(rows[row], HIGH);
+    digitalWrite(cols[column], HIGH);
+    delay(50);
+    digitalWrite(rows[row], LOW);
+    digitalWrite(cols[column], LOW);
+    if (meta) {
+      pressKey(shiftLock);
+    }
+  }
+}
